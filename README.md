@@ -1,25 +1,24 @@
-# whisper.cpp realtime translation CLI
+# Realtime Audio Translate
 
-Local microphone input is transcribed and translated with `whisper.cpp`.
+[English](#english) | [日本語](#日本語)
 
-## Setup
+---
 
-### whisper.cpp (local mic / Teams)
+<a id="english"></a>
 
-```bash
-./whisper-translate setup base
-```
+## English
 
-On the first run this downloads `models/ggml-base.bin` inside `vendor/whisper.cpp`
-and builds `build/bin/whisper-stream` with SDL2 microphone support.
+Real-time CLI tool that captures system audio (Chrome, YouTube, Teams, etc.) and translates speech using Whisper + OpenAI.
 
-### Chrome audio capture (YouTube, Teams, etc.)
+### Setup
 
-No whisper.cpp build needed. Requires:
+#### Chrome audio capture (YouTube, Teams, etc.)
+
+Requires:
 
 - [BlackHole 2ch](https://existential.audio/blackhole/) (`brew install blackhole-2ch`)
 - [ffmpeg](https://ffmpeg.org/) (`brew install ffmpeg`)
-- OpenAI API key in `.env`:
+- OpenAI API key:
 
 ```bash
 cp .env.example .env
@@ -37,43 +36,63 @@ Get your API key from https://platform.openai.com/api-keys
 macOS audio routing (set up once):
 
 1. Open **Audio MIDI Setup**.
-2. Create a **Multi-Output Device** that includes your normal speaker/headphones
-   and **BlackHole 2ch**.
+2. Create a **Multi-Output Device** that includes your normal speaker/headphones and **BlackHole 2ch**.
 3. Set macOS sound output to that Multi-Output Device.
 
-This routes all system audio (Chrome, YouTube, Teams web, etc.) through
-BlackHole, which the script captures.
+This routes all system audio through BlackHole, which the script captures.
 
-## Chrome audio translation
+#### whisper.cpp (local mic / Teams)
+
+```bash
+./whisper-translate setup base
+```
+
+Downloads `models/ggml-base.bin` and builds `build/bin/whisper-stream` with SDL2 microphone support.
+
+### Usage
+
+#### Chrome audio translation
 
 ```bash
 ./whisper-translate chrome
 ```
 
-Captures Chrome's audio output via BlackHole, transcribes with the OpenAI
-Whisper API, and translates to Japanese.
+Captures Chrome's audio output via BlackHole, transcribes with the OpenAI Whisper API, and translates to Japanese.
 
 ```
 Capturing from device: :1
 Chunk size: 5s | Source: en | Target: Japanese
 Press Ctrl+C to stop.
 
-[EN] I'm McDonald's. I'm going to teach you some phrases to use when you order
-[Japanese] 私はマクドナルドです。注文するときに使えるフレーズを教えます。
+[EN] I'm going to teach you some phrases to use when you order
+[Japanese] 注文するときに使えるフレーズを教えます。
 
 [EN] I'd like to order a Big Mac.
 [Japanese] ビッグマックを注文したいです。
 ```
 
-### Options
+#### Local microphone translation
 
 ```bash
-./whisper-translate chrome --source-language ja      # Japanese speech → Japanese transcript
-./whisper-translate chrome --target-language English   # Translate into English
-./whisper-translate chrome --no-translate              # Transcript only, no translation
-./whisper-translate chrome --chunk-seconds 3           # Shorter chunks for lower latency
-./whisper-translate chrome --openai-model gpt-4o       # Use a different translation model
-./whisper-translate chrome --device ":1"               # Force specific ffmpeg device
+./whisper-translate run --model base --language ja
+```
+
+#### Teams meeting translation
+
+```bash
+export OPENAI_API_KEY="..."
+./whisper-translate teams --model base
+```
+
+### Chrome command options
+
+```bash
+./whisper-translate chrome --source-language ja      # Japanese speech input
+./whisper-translate chrome --target-language English  # Translate into English
+./whisper-translate chrome --no-translate             # Transcript only
+./whisper-translate chrome --chunk-seconds 3          # Shorter chunks for lower latency
+./whisper-translate chrome --openai-model gpt-4o      # Use a different model
+./whisper-translate chrome --device ":1"              # Force specific ffmpeg device
 ```
 
 | Option | Default | Description |
@@ -85,75 +104,7 @@ Press Ctrl+C to stop.
 | `--no-translate` | off | Show transcript only, skip translation |
 | `--device` | auto | ffmpeg AVFoundation device (`:N`), auto-detects BlackHole |
 
-## Run Japanese to English translation (local mic)
-
-```bash
-./whisper-translate run --model base --language ja
-```
-
-Useful options:
-
-```bash
-./whisper-translate run --model small --language ja --length 7000
-./whisper-translate run --model tiny --language ja --step 300 --length 3000
-./whisper-translate run --model base --language ja --capture 1 --output translation.txt
-```
-
-`--translate` in Whisper translates the source speech to English. For Japanese
-input, `--language ja` keeps language detection stable.
-
-## Teams English to Japanese
-
-Whisper's built-in `--translate` only translates into English. For Teams calls
-where participants speak English and you want Japanese, use the Teams command:
-
-```bash
-export OPENAI_API_KEY="..."
-./whisper-translate teams --model base
-```
-
-This opens Microsoft Teams in Google Chrome, looks for the BlackHole capture
-device, transcribes English meeting audio with `whisper.cpp`, and translates the
-transcript to Japanese with the OpenAI Responses API.
-
-If BlackHole is not selected automatically, pass the capture ID shown at startup:
-
-```bash
-./whisper-translate teams --model base --capture 3
-```
-
-Useful Teams options:
-
-```bash
-./whisper-translate teams --model small --capture-name BlackHole
-./whisper-translate teams --model base --no-translate
-./whisper-translate teams --model base --transcript-file teams-en.txt
-```
-
-For a specific Teams meeting URL:
-
-```bash
-./whisper-translate teams --model base --teams-url 'https://teams.live.com/meet/9353409285266?p=W4Dw7PcXmb54nyx243'
-```
-
-## Test With Generated Audio
-
-```bash
-./scripts/test_audio_translate.sh
-```
-
-This creates `test_audio/teams_test.wav`, transcribes it with `whisper.cpp`, and
-writes:
-
-- `test_audio/teams_test.en.txt`
-- `test_audio/teams_test.ja.txt`
-
-If `OPENAI_API_KEY` is set, the Japanese file is produced through the same
-OpenAI translation path used for Teams. Without an API key, the script uses a
-deterministic fixture translation so the local audio and transcription pipeline
-can still be checked.
-
-## Commands
+### Commands
 
 ```bash
 ./whisper-translate help
@@ -162,21 +113,123 @@ can still be checked.
 ./whisper-translate teams --help
 ```
 
-`run` supports:
-
-- `--model`: `tiny`, `base`, `small`, `medium`, etc.
-- `--language`: source speech language, for example `ja`, `en`, `zh`, `ko`.
-- `--capture`: microphone device ID. The default `-1` uses the system default.
-- `--output`: write text output to a file as well as the terminal.
-- `--keep-context`: keep prior text as context between chunks.
-- `--no-gpu`: force CPU inference.
-
-## Notes
+### Notes
 
 - Smaller models are faster but less accurate: `tiny` < `base` < `small` < `medium`.
 - If macOS asks for microphone permission, allow Terminal or the app running this script.
-- Current `whisper.cpp` revision used here:
+
+---
+
+<a id="日本語"></a>
+
+## 日本語
+
+Chrome（YouTube、Teamsなど）のシステム音声をキャプチャし、Whisper + OpenAIでリアルタイム翻訳するCLIツールです。
+
+### セットアップ
+
+#### Chrome音声キャプチャ（YouTube、Teamsなど）
+
+必要なもの:
+
+- [BlackHole 2ch](https://existential.audio/blackhole/) (`brew install blackhole-2ch`)
+- [ffmpeg](https://ffmpeg.org/) (`brew install ffmpeg`)
+- OpenAI APIキー:
 
 ```bash
-git -C vendor/whisper.cpp log -1 --format='%h %cd %s' --date=short
+cp .env.example .env
+# .envを編集してOpenAI APIキーを設定
 ```
+
+`.env` の書式:
+
+```
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+APIキーの取得: https://platform.openai.com/api-keys
+
+macOS音声ルーティングの設定（初回のみ）:
+
+1. **Audio MIDI Setup**（オーディオ MIDI セットアップ）を開く。
+2. 通常使用しているスピーカー/ヘッドホンと **BlackHole 2ch** を含む **複数出力装置**（Multi-Output Device）を作成。
+3. macOSのサウンド出力をその複数出力装置に設定。
+
+これによりシステム音声がBlackHoleを経由し、スクリプトでキャプチャできるようになります。
+
+#### whisper.cpp（ローカルマイク / Teams）
+
+```bash
+./whisper-translate setup base
+```
+
+`models/ggml-base.bin` をダウンロードし、SDL2マイク対応の `build/bin/whisper-stream` をビルドします。
+
+### 使い方
+
+#### Chrome音声のリアルタイム翻訳
+
+```bash
+./whisper-translate chrome
+```
+
+BlackHole経由でChromeの音声出力をキャプチャし、OpenAI Whisper APIで文字起こし、日本語に翻訳します。
+
+```
+Capturing from device: :1
+Chunk size: 5s | Source: en | Target: Japanese
+Press Ctrl+C to stop.
+
+[EN] I'm going to teach you some phrases to use when you order
+[Japanese] 注文するときに使えるフレーズを教えます。
+
+[EN] I'd like to order a Big Mac.
+[Japanese] ビッグマックを注文したいです。
+```
+
+#### ローカルマイク翻訳
+
+```bash
+./whisper-translate run --model base --language ja
+```
+
+#### Teams会議翻訳
+
+```bash
+export OPENAI_API_KEY="..."
+./whisper-translate teams --model base
+```
+
+### chromeコマンドのオプション
+
+```bash
+./whisper-translate chrome --source-language ja      # 日本語音声を入力
+./whisper-translate chrome --target-language English  # 英語に翻訳
+./whisper-translate chrome --no-translate             # 文字起こしのみ
+./whisper-translate chrome --chunk-seconds 3          # チャンクを短くして低遅延化
+./whisper-translate chrome --openai-model gpt-4o      # 翻訳モデルを変更
+./whisper-translate chrome --device ":1"              # ffmpegデバイスを明示指定
+```
+
+| オプション | デフォルト | 説明 |
+|---|---|---|
+| `--source-language` | `en` | Whisper文字起こしの言語コード |
+| `--target-language` | `Japanese` | 翻訳先の言語 |
+| `--openai-model` | `gpt-4o-mini` | 翻訳に使用するOpenAIモデル |
+| `--chunk-seconds` | `5` | 1チャンクあたりの音声キャプチャ秒数 |
+| `--no-translate` | off | 文字起こしのみ、翻訳をスキップ |
+| `--device` | 自動 | ffmpeg AVFoundationデバイス（`:N`）、自動検出はBlackHole |
+
+### コマンド一覧
+
+```bash
+./whisper-translate help
+./whisper-translate chrome --help
+./whisper-translate run --help
+./whisper-translate teams --help
+```
+
+### 補足
+
+- モデルが小さいほど高速ですが精度は下がります: `tiny` < `base` < `small` < `medium`
+- macOSがマイクの許可を求めた場合は、ターミナルまたは実行アプリを許可してください。
