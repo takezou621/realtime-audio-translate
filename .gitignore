@@ -1,0 +1,5 @@
+/.env
+vendor/whisper.cpp/build/
+vendor/whisper.cpp/models/ggml-*.bin
+*.wav
+*.log

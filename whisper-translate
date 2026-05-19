@@ -1,0 +1,54 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+usage() {
+  cat <<USAGE
+Usage: ./whisper-translate COMMAND [options]
+
+Commands:
+  setup [MODEL]       Install/build whisper.cpp and download a model.
+  run [options]       Start microphone translation.
+  teams [options]     Open Teams in Chrome and translate English meeting audio to Japanese.
+  chrome [options]    Capture Chrome audio (YouTube, Teams, etc.) and translate in real-time.
+  help                Show this help.
+
+Common examples:
+  ./whisper-translate setup base
+  ./whisper-translate run --model base --language ja
+  ./whisper-translate chrome                      # Auto-detect BlackHole, translate EN→JA
+  ./whisper-translate chrome --source-language ja  # Japanese speech → English text
+  OPENAI_API_KEY=... ./whisper-translate teams --model base
+
+Run options are passed to scripts/translate_stream.sh.
+USAGE
+}
+
+command="${1:-help}"
+case "${command}" in
+  setup)
+    shift
+    exec "${ROOT_DIR}/scripts/setup_whisper_cpp.sh" "${@:-base}"
+    ;;
+  run)
+    shift
+    exec "${ROOT_DIR}/scripts/translate_stream.sh" "$@"
+    ;;
+  teams)
+    shift
+    exec python3 "${ROOT_DIR}/scripts/teams_translate.py" "$@"
+    ;;
+  chrome)
+    shift
+    exec python3 "${ROOT_DIR}/scripts/chrome_translate.py" "$@"
+    ;;
+  help|--help|-h)
+    usage
+    ;;
+  *)
+    echo "Unknown command: ${command}" >&2
+    usage >&2
+    exit 1
+    ;;
+esac

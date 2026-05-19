@@ -1,0 +1,28 @@
+- generic [ref=e4]:
+  - generic [ref=e8]:
+    - generic [ref=e9]:
+      - img [ref=e13]
+      - generic [ref=e15]: Teams 会議に参加
+      - generic [ref=e17]:
+        - button "このブラウザーから会議に参加します" [ref=e18] [cursor=pointer]:
+          - heading "このブラウザーで続ける" [level=3] [ref=e21]
+        - button "Teams アプリを開いて会議に参加します" [ref=e22] [cursor=pointer]:
+          - heading "Teams アプリで参加する" [level=3] [ref=e25]
+    - generic [ref=e27]:
+      - img [ref=e28]
+      - paragraph [ref=e30]:
+        - text: アプリがない場合
+        - link "Teams アプリケーションをダウンロードします" [ref=e31] [cursor=pointer]:
+          - /url: "#"
+          - text: 今すぐアプリをダウンロードする
+  - contentinfo [ref=e32]:
+    - generic [ref=e33]:
+      - generic [ref=e34]:
+        - img [ref=e35]
+        - generic [ref=e36]: Microsoft Teams
+      - link "プライバシーと Cookie" [ref=e37] [cursor=pointer]:
+        - /url: https://go.microsoft.com/fwlink/?LinkId=521839
+      - link "消費者の健康に関するプライバシー" [ref=e38] [cursor=pointer]:
+        - /url: https://go.microsoft.com/fwlink/?linkid=2259814
+      - link "サード パーティの情報開示" [ref=e39] [cursor=pointer]:
+        - /url: attribution.txt

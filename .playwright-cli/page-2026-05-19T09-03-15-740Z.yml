@@ -1,0 +1,76 @@
+- generic [active] [ref=e1]:
+  - region [ref=e10]:
+    - generic [ref=e11]:
+      - generic [ref=e14]:
+        - generic [ref=e16]:
+          - img
+        - generic [ref=e17]:
+          - heading "Microsoft Teams 会議 のビデオとオーディオのオプションを選択します" [level=1] [ref=e18]:
+            - generic [ref=e19]: Microsoft Teams 会議
+          - textbox "名前を入力" [ref=e22]: Translator Test
+      - generic [ref=e23]:
+        - generic [ref=e24]:
+          - generic [ref=e25]:
+            - generic [ref=e113]:
+              - img [ref=e114]
+              - generic [ref=e119]: カメラはオフになっています
+            - region [ref=e28]:
+              - toolbar "ビデオ オプション" [ref=e29]:
+                - generic [ref=e32]:
+                  - button [ref=e33]:
+                    - img [ref=e120]
+                  - button "その他のビデオのオプション" [ref=e37]:
+                    - img [ref=e39]
+                  - generic [ref=e41]:
+                    - generic [ref=e42]: カメラをオフにして
+                    - generic [ref=e43]:
+                      - switch "カメラをオンにします(⇧ ⌘ O)" [ref=e122] [cursor=pointer]
+                      - generic:
+                        - img
+                - separator [ref=e45]
+                - button "背景効果を使用するには、ビデオをオンにします" [disabled] [ref=e123]:
+                  - img [ref=e48]
+                  - text: 背景フィルター
+          - region [ref=e52]:
+            - radiogroup "オーディオ オプション" [ref=e53]:
+              - generic [ref=e54]:
+                - generic [ref=e55]:
+                  - radio "コンピューターの音声" [checked] [ref=e56] [cursor=pointer]
+                  - generic [ref=e57] [cursor=pointer]:
+                    - generic [ref=e58]: コンピューターのマイクとスピーカーの制御
+                    - generic [ref=e63]: コンピューターの音声
+                - generic [ref=e65]:
+                  - generic [ref=e66]:
+                    - button [ref=e67]:
+                      - img [ref=e69]
+                    - generic [ref=e71]:
+                      - 'button "選択したマイク: BlackHole 2ch (Virtual)、マイクのオプションを開く" [ref=e72]':
+                        - generic [ref=e73]: BlackHole 2ch (Virtual)
+                        - img [ref=e75]
+                      - generic [ref=e77]:
+                        - generic [ref=e78]: マイク オン
+                        - generic [ref=e79]:
+                          - switch "マイクをミュート(⇧ ⌘ M)" [checked] [ref=e80] [cursor=pointer]
+                          - generic:
+                            - img
+                  - generic [ref=e82]:
+                    - button "スピーカーをオフにします ()" [ref=e83]:
+                      - img [ref=e85]
+                    - 'button "選択したスピーカー: 複数出力装置 (Aggregate)、スピーカーのオプションを開く" [ref=e87]':
+                      - generic [ref=e88]: 複数出力装置 (Aggregate)
+                      - img [ref=e90]
+              - generic [ref=e93]:
+                - radio "音声を使用しない" [ref=e94] [cursor=pointer]
+                - generic [ref=e95] [cursor=pointer]:
+                  - generic [ref=e96]: 音声なし
+                  - generic [ref=e101]: 音声を使用しない
+        - generic [ref=e103]:
+          - button "キャンセル" [ref=e104]
+          - button "今すぐ参加" [ref=e105]
+    - generic [ref=e106]:
+      - button "サインイン" [ref=e107] [cursor=pointer]
+      - link "Teams アプリをダウンロードする" [ref=e108] [cursor=pointer]:
+        - /url: https://teams.microsoft.com/downloads/desktopcontextualinstaller?env=life&plat=osx&arch=x64&download=true&intent=life
+      - link "ヘルプが必要ですか?" [ref=e109] [cursor=pointer]:
+        - /url: https://support.microsoft.com/en-us/office/join-a-teams-meeting-078e9868-f1aa-4414-8bb9-ee88e9236ee4
+  - generic [ref=e110]: カメラがオフになっています
