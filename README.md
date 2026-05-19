@@ -21,9 +21,18 @@ No whisper.cpp build needed. Requires:
 - [ffmpeg](https://ffmpeg.org/) (`brew install ffmpeg`)
 - OpenAI API key in `.env`:
 
+```bash
+cp .env.example .env
+# Edit .env and set your OpenAI API key
 ```
-OPENAI_API_KEY=sk-...
+
+`.env` format:
+
 ```
+OPENAI_API_KEY=sk-proj-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Get your API key from https://platform.openai.com/api-keys
 
 macOS audio routing (set up once):
 
