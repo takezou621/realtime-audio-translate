@@ -71,6 +71,29 @@ Press Ctrl+C to stop.
 [Japanese] ビッグマックを注文したいです。
 ```
 
+#### Speaker diarization
+
+Add `--diarize` to identify speakers (話者A, 話者B) in the output:
+
+```bash
+# Chrome mode (uses Whisper API verbose_json to detect speaker turns)
+./whisper-translate chrome --diarize
+
+# Teams / local mic mode (requires a -tdrz model)
+./whisper-translate setup base-tdrz
+./whisper-translate teams --model base --diarize
+./whisper-translate run --model base --diarize
+```
+
+Output with diarization:
+
+```
+話者A: Hello, how are you?
+話者A: こんにちは、お元気ですか？
+話者B: I'm doing great.
+話者B: 元気です、ありがとう。
+```
+
 #### Local microphone translation
 
 ```bash
@@ -185,6 +208,29 @@ Press Ctrl+C to stop.
 
 [EN] I'd like to order a Big Mac.
 [Japanese] ビッグマックを注文したいです。
+```
+
+#### 話者識別（Diarization）
+
+`--diarize` を追加すると、話者（話者A、話者B）を識別して出力します:
+
+```bash
+# Chromeモード（Whisper APIのverbose_jsonで話者ターンを検出）
+./whisper-translate chrome --diarize
+
+# Teams / ローカルマイクモード（-tdrzモデルが必要）
+./whisper-translate setup base-tdrz
+./whisper-translate teams --model base --diarize
+./whisper-translate run --model base --diarize
+```
+
+話者識別ありの出力:
+
+```
+話者A: Hello, how are you?
+話者A: こんにちは、お元気ですか？
+話者B: I'm doing great.
+話者B: 元気です、ありがとう。
 ```
 
 #### ローカルマイク翻訳

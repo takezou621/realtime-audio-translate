@@ -13,6 +13,7 @@ KEEP_MS="200"
 CAPTURE_ID="-1"
 OUTPUT_FILE=""
 EXTRA_ARGS=()
+DIARIZE=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -61,8 +62,8 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --diarize)
+      DIARIZE=true
       EXTRA_ARGS+=("--tinydiarize")
-      MODEL="${MODEL}-tdrz"
       shift
       ;;
     --help|-h)
@@ -96,6 +97,10 @@ USAGE
       ;;
   esac
 done
+
+if [[ "${DIARIZE}" == true ]]; then
+  MODEL="${MODEL}-tdrz"
+fi
 
 BIN="${WHISPER_DIR}/build/bin/whisper-stream"
 MODEL_PATH="${WHISPER_DIR}/models/ggml-${MODEL}.bin"

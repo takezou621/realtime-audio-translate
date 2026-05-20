@@ -19,6 +19,8 @@ WHISPER_DIR = ROOT_DIR / "vendor" / "whisper.cpp"
 WHISPER_BIN = WHISPER_DIR / "build" / "bin" / "whisper-stream"
 TEAMS_URL = "https://teams.microsoft.com/v2/"
 
+SPEAKER_LABELS = ["話者A", "話者B"]
+
 
 def load_env_file(path: Path = ROOT_DIR / ".env") -> None:
     if not path.exists():
@@ -230,9 +232,6 @@ def should_skip_transcript(text: str) -> bool:
         "[NO SPEECH]",
         "NO SPEECH",
     }
-
-
-SPEAKER_LABELS = ["話者A", "話者B"]
 
 
 def parse_speaker_turns(text: str) -> list[tuple[str, str]]:

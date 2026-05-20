@@ -19,6 +19,8 @@ CHAT_API = "https://api.openai.com/v1/chat/completions"
 CHUNK_SEC = 5
 SAMPLE_RATE = 44100
 
+SPEAKER_LABELS = ["話者A", "話者B"]
+
 
 def load_env(path: Path = DEFAULT_ENV) -> None:
     if not path.exists():
@@ -98,9 +100,6 @@ def transcribe(audio_path: str, api_key: str, lang: str = "en", diarize: bool = 
         detail = e.read().decode("utf-8", errors="replace")
         err(f"Whisper API error {e.code}: {detail}")
         return "", []
-
-
-SPEAKER_LABELS = ["話者A", "話者B"]
 
 
 def detect_speakers(segments: list[dict], gap_threshold: float = 0.8) -> list[tuple[str, str]]:
@@ -244,7 +243,7 @@ def main() -> int:
                 speaker_parts = detect_speakers(segments)
                 if speaker_parts:
                     for speaker, part_text in speaker_parts:
-                        if not part_text or part_text in seen:
+                        if not part_text:
                             continue
                         labeled = f"{speaker}: {part_text}"
                         print(f"\n{labeled}", flush=True)
