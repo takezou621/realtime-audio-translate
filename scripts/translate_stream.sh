@@ -13,6 +13,7 @@ KEEP_MS="200"
 CAPTURE_ID="-1"
 OUTPUT_FILE=""
 EXTRA_ARGS=()
+DIARIZE=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -60,6 +61,11 @@ while [[ $# -gt 0 ]]; do
       EXTRA_ARGS+=("--no-gpu")
       shift
       ;;
+    --diarize)
+      DIARIZE=true
+      EXTRA_ARGS+=("--tinydiarize")
+      shift
+      ;;
     --help|-h)
       cat <<USAGE
 Usage: ./scripts/translate_stream.sh [options]
@@ -77,6 +83,7 @@ Options:
   --keep-context      Keep prompt context between audio chunks
   --save-audio        Save recorded audio to a WAV file
   --no-gpu            Disable GPU inference
+  --diarize           Enable speaker diarization (uses -tdrz model)
   --help              Show this help.
 
 Example:
@@ -90,6 +97,10 @@ USAGE
       ;;
   esac
 done
+
+if [[ "${DIARIZE}" == true ]]; then
+  MODEL="${MODEL}-tdrz"
+fi
 
 BIN="${WHISPER_DIR}/build/bin/whisper-stream"
 MODEL_PATH="${WHISPER_DIR}/models/ggml-${MODEL}.bin"

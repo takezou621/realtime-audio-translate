@@ -19,6 +19,8 @@ CHAT_API = "https://api.openai.com/v1/chat/completions"
 CHUNK_SEC = 5
 SAMPLE_RATE = 44100
 
+SPEAKER_LABELS = ["話者A", "話者B"]
+
 
 def load_env(path: Path = DEFAULT_ENV) -> None:
     if not path.exists():
@@ -60,10 +62,11 @@ def find_blackhole_device() -> str:
     return ":1"
 
 
-def transcribe(audio_path: str, api_key: str, lang: str = "en") -> str:
+def transcribe(audio_path: str, api_key: str, lang: str = "en", diarize: bool = False) -> tuple[str, list[dict]]:
     with open(audio_path, "rb") as f:
         audio_data = f.read()
     boundary = "----FormBoundary7MA4YWxkTrZu0gW"
+    response_format = "verbose_json" if diarize else "json"
     body = (
         f"--{boundary}\r\n"
         f'Content-Disposition: form-data; name="file"; filename="chunk.wav"\r\n'
@@ -77,7 +80,7 @@ def transcribe(audio_path: str, api_key: str, lang: str = "en") -> str:
         f"{lang}\r\n"
         f"--{boundary}\r\n"
         f'Content-Disposition: form-data; name="response_format"\r\n\r\n'
-        f"json\r\n"
+        f"{response_format}\r\n"
         f"--{boundary}--\r\n".encode()
     )
     req = urllib.request.Request(
@@ -92,26 +95,50 @@ def transcribe(audio_path: str, api_key: str, lang: str = "en") -> str:
     try:
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read())
-            return data.get("text", "").strip()
+            return data.get("text", "").strip(), data.get("segments", [])
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", errors="replace")
         err(f"Whisper API error {e.code}: {detail}")
-        return ""
+        return "", []
+
+
+def detect_speakers(segments: list[dict], gap_threshold: float = 0.8) -> list[tuple[str, str]]:
+    """Detect speaker turns based on gaps between segments."""
+    if not segments:
+        return []
+    result = []
+    speaker_idx = 0
+    for i, seg in enumerate(segments):
+        if i > 0:
+            prev_end = segments[i - 1]["end"]
+            curr_start = seg["start"]
+            if curr_start - prev_end >= gap_threshold:
+                speaker_idx += 1
+        text = seg.get("text", "").strip()
+        if text:
+            result.append((SPEAKER_LABELS[speaker_idx % len(SPEAKER_LABELS)], text))
+    return result
 
 
 def translate(text: str, target: str, api_key: str, model: str = "gpt-4o-mini") -> str:
     if not text:
         return ""
+    has_speaker = any(text.startswith(f"{s}:") or text.startswith(f"{s}：") for s in SPEAKER_LABELS)
+    if has_speaker:
+        system_content = (
+            f"Translate to natural {target}. "
+            "Preserve the speaker label (話者A/話者B) at the start of the line. "
+            "Return only the translation. Preserve names, numbers, and technical terms."
+        )
+    else:
+        system_content = (
+            f"Translate to natural {target}. "
+            "Return only the translation. Preserve names, numbers, and technical terms."
+        )
     body = {
         "model": model,
         "messages": [
-            {
-                "role": "system",
-                "content": (
-                    f"Translate to natural {target}. "
-                    "Return only the translation. Preserve names, numbers, and technical terms."
-                ),
-            },
+            {"role": "system", "content": system_content},
             {"role": "user", "content": text},
         ],
         "temperature": 0.3,
@@ -142,6 +169,7 @@ def main() -> int:
     parser.add_argument("--openai-model", default="gpt-4o-mini", help="Translation model")
     parser.add_argument("--chunk-seconds", type=int, default=CHUNK_SEC)
     parser.add_argument("--no-translate", action="store_true", help="Show transcript only")
+    parser.add_argument("--diarize", action="store_true", help="Enable speaker detection")
     parser.add_argument("--device", default="", help="FFmpeg audio device (auto-detect if empty)")
     args = parser.parse_args()
 
@@ -189,7 +217,7 @@ def main() -> int:
             if not os.path.exists(chunk_path) or os.path.getsize(chunk_path) < 1000:
                 continue
 
-            text = transcribe(chunk_path, api_key, args.source_language)
+            text, segments = transcribe(chunk_path, api_key, args.source_language, diarize=args.diarize)
             text = text.strip()
 
             if not text or text in seen:
@@ -210,6 +238,25 @@ def main() -> int:
                 continue
 
             seen.add(text)
+
+            if args.diarize and segments:
+                speaker_parts = detect_speakers(segments)
+                if speaker_parts:
+                    for speaker, part_text in speaker_parts:
+                        if not part_text:
+                            continue
+                        labeled = f"{speaker}: {part_text}"
+                        print(f"\n{labeled}", flush=True)
+                        if not args.no_translate:
+                            translated = translate(labeled, args.target_language, api_key, args.openai_model)
+                            if translated:
+                                print(translated, flush=True)
+                    try:
+                        os.unlink(chunk_path)
+                    except OSError:
+                        pass
+                    continue
+
             print(f"\n[{args.source_language.upper()}] {text}", flush=True)
 
             if not args.no_translate:

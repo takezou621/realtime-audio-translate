@@ -19,6 +19,8 @@ WHISPER_DIR = ROOT_DIR / "vendor" / "whisper.cpp"
 WHISPER_BIN = WHISPER_DIR / "build" / "bin" / "whisper-stream"
 TEAMS_URL = "https://teams.microsoft.com/v2/"
 
+SPEAKER_LABELS = ["話者A", "話者B"]
+
 
 def load_env_file(path: Path = ROOT_DIR / ".env") -> None:
     if not path.exists():
@@ -50,14 +52,15 @@ def model_path(model: str) -> Path:
     return WHISPER_DIR / "models" / f"ggml-{model}.bin"
 
 
-def ensure_ready(model: str) -> None:
+def ensure_ready(model: str, diarize: bool = False) -> None:
+    effective = f"{model}-tdrz" if diarize else model
     if not WHISPER_BIN.exists():
         raise SystemExit(
             "whisper-stream is missing. Run: ./whisper-translate setup " + model
         )
-    if not model_path(model).exists():
+    if not model_path(effective).exists():
         raise SystemExit(
-            f"Model '{model}' is missing. Run: ./whisper-translate setup {model}"
+            f"Model '{effective}' is missing. Run: ./whisper-translate setup {effective}"
         )
 
 
@@ -149,13 +152,24 @@ def translate_openai(text: str, target_language: str, model: str) -> str:
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is not set.")
 
-    body = {
-        "model": model,
-        "instructions": (
+    has_speaker = any(text.startswith(f"{s}:") or text.startswith(f"{s}：") for s in SPEAKER_LABELS)
+    if has_speaker:
+        instructions = (
+            f"Translate meeting speech into natural {target_language}. "
+            "Preserve the speaker label (話者A/話者B) at the start of the line. "
+            "Return only the translation. Preserve names, product names, numbers, "
+            "dates, action items, and technical terms."
+        )
+    else:
+        instructions = (
             f"Translate meeting speech into natural {target_language}. "
             "Return only the translation. Preserve names, product names, numbers, "
             "dates, action items, and technical terms."
-        ),
+        )
+
+    body = {
+        "model": model,
+        "instructions": instructions,
         "input": text,
     }
     request = urllib.request.Request(
@@ -196,9 +210,12 @@ def read_new_text(path: Path, offset: int) -> tuple[int, list[str]]:
     return offset, lines
 
 
-def normalize_transcript_line(line: str) -> str:
+def normalize_transcript_line(line: str, preserve_speaker_turns: bool = False) -> str:
     line = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", line)
-    line = re.sub(r"^\[[^\]]+\]\s*", "", line).strip()
+    if preserve_speaker_turns:
+        line = re.sub(r"^\[(?!SPEAKER_TURN\])[^\]]+\]\s*", "", line).strip()
+    else:
+        line = re.sub(r"^\[[^\]]+\]\s*", "", line).strip()
     line = re.sub(r"\s+", " ", line)
     return line
 
@@ -217,6 +234,15 @@ def should_skip_transcript(text: str) -> bool:
     }
 
 
+def parse_speaker_turns(text: str) -> list[tuple[str, str]]:
+    """Split text on [SPEAKER_TURN] markers and return (speaker, text) pairs."""
+    parts = re.split(r"\[SPEAKER_TURN\]\s*", text)
+    parts = [p.strip() for p in parts if p.strip()]
+    if not parts:
+        return []
+    return [(SPEAKER_LABELS[i % len(SPEAKER_LABELS)], part) for i, part in enumerate(parts)]
+
+
 def start_log_thread(proc: subprocess.Popen[str]) -> threading.Thread:
     def relay() -> None:
         assert proc.stdout is not None
@@ -230,7 +256,7 @@ def start_log_thread(proc: subprocess.Popen[str]) -> threading.Thread:
 
 
 def run(args: argparse.Namespace) -> int:
-    ensure_ready(args.model)
+    ensure_ready(args.model, args.diarize)
 
     if args.open_teams:
         run_open_chrome(args.teams_url)
@@ -245,10 +271,11 @@ def run(args: argparse.Namespace) -> int:
     transcript_file.parent.mkdir(parents=True, exist_ok=True)
     transcript_file.write_text("", encoding="utf-8")
 
+    effective_model = f"{args.model}-tdrz" if args.diarize else args.model
     cmd = [
         str(WHISPER_BIN),
         "-m",
-        str(model_path(args.model)),
+        str(model_path(effective_model)),
         "-t",
         str(args.threads),
         "--step",
@@ -264,12 +291,16 @@ def run(args: argparse.Namespace) -> int:
         "--file",
         str(transcript_file),
     ]
+    if args.diarize:
+        cmd.append("--tinydiarize")
     if args.keep_context:
         cmd.append("--keep-context")
     if args.no_gpu:
         cmd.append("--no-gpu")
 
     eprint("Starting English transcription from Teams/Chrome audio.")
+    if args.diarize:
+        eprint("Speaker diarization enabled (model: %s)." % effective_model)
     eprint(f"Transcript file: {transcript_file}")
     eprint("Press Ctrl+C to stop.")
 
@@ -288,19 +319,34 @@ def run(args: argparse.Namespace) -> int:
         while proc.poll() is None:
             offset, lines = read_new_text(transcript_file, offset)
             for raw_line in lines:
-                text = normalize_transcript_line(raw_line)
-                if should_skip_transcript(text) or text in seen:
+                text = normalize_transcript_line(raw_line, preserve_speaker_turns=args.diarize)
+                content_for_dedup = re.sub(r"\[SPEAKER_TURN\]\s*", "", text).strip()
+                if should_skip_transcript(content_for_dedup) or content_for_dedup in seen:
                     continue
-                seen.add(text)
-                print(f"\nEN: {text}", flush=True)
-                if args.no_translate:
-                    continue
-                try:
-                    translated = translate_openai(text, args.target_language, args.openai_model)
-                except Exception as exc:
-                    eprint(f"Translation failed: {exc}")
-                    continue
-                print(f"JA: {translated}", flush=True)
+                seen.add(content_for_dedup)
+
+                if args.diarize and "[SPEAKER_TURN]" in text:
+                    for speaker, part_text in parse_speaker_turns(text):
+                        labeled = f"{speaker}: {part_text}"
+                        print(f"\n{labeled}", flush=True)
+                        if args.no_translate:
+                            continue
+                        try:
+                            translated = translate_openai(labeled, args.target_language, args.openai_model)
+                        except Exception as exc:
+                            eprint(f"Translation failed: {exc}")
+                            continue
+                        print(translated, flush=True)
+                else:
+                    print(f"\nEN: {text}", flush=True)
+                    if args.no_translate:
+                        continue
+                    try:
+                        translated = translate_openai(text, args.target_language, args.openai_model)
+                    except Exception as exc:
+                        eprint(f"Translation failed: {exc}")
+                        continue
+                    print(f"JA: {translated}", flush=True)
             time.sleep(args.poll_interval)
     except KeyboardInterrupt:
         eprint("Stopping...")
@@ -325,6 +371,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--keep", default="500", help="audio kept from prior chunk in ms")
     parser.add_argument("--keep-context", action="store_true")
     parser.add_argument("--no-gpu", action="store_true")
+    parser.add_argument("--diarize", action="store_true", help="enable speaker diarization (requires -tdrz model)")
     parser.add_argument("--no-translate", action="store_true", help="print English transcript only")
     parser.add_argument("--transcript-file", help="where whisper-stream writes English transcript")
     parser.add_argument("--poll-interval", type=float, default=0.5)
