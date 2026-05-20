@@ -60,6 +60,11 @@ while [[ $# -gt 0 ]]; do
       EXTRA_ARGS+=("--no-gpu")
       shift
       ;;
+    --diarize)
+      EXTRA_ARGS+=("--tinydiarize")
+      MODEL="${MODEL}-tdrz"
+      shift
+      ;;
     --help|-h)
       cat <<USAGE
 Usage: ./scripts/translate_stream.sh [options]
@@ -77,6 +82,7 @@ Options:
   --keep-context      Keep prompt context between audio chunks
   --save-audio        Save recorded audio to a WAV file
   --no-gpu            Disable GPU inference
+  --diarize           Enable speaker diarization (uses -tdrz model)
   --help              Show this help.
 
 Example:
