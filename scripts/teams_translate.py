@@ -11,6 +11,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 
 
@@ -265,6 +266,20 @@ def run(args: argparse.Namespace) -> int:
 
     capture_id = choose_capture_id(args)
 
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = ROOT_DIR / "output" / f"teams_{timestamp}.txt"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_file = output_path.open("a", encoding="utf-8")
+    eprint(f"Saving translations to: {output_path}")
+
+    def out(text: str) -> None:
+        print(text, flush=True)
+        output_file.write(text + "\n")
+        output_file.flush()
+
     transcript_file = Path(args.transcript_file) if args.transcript_file else Path(
         tempfile.NamedTemporaryFile(prefix="teams-whisper-", suffix=".txt", delete=True).name
     )
@@ -328,7 +343,7 @@ def run(args: argparse.Namespace) -> int:
                 if args.diarize and "[SPEAKER_TURN]" in text:
                     for speaker, part_text in parse_speaker_turns(text):
                         labeled = f"{speaker}: {part_text}"
-                        print(f"\n{labeled}", flush=True)
+                        out(f"\n{labeled}")
                         if args.no_translate:
                             continue
                         try:
@@ -336,9 +351,9 @@ def run(args: argparse.Namespace) -> int:
                         except Exception as exc:
                             eprint(f"Translation failed: {exc}")
                             continue
-                        print(translated, flush=True)
+                        out(translated)
                 else:
-                    print(f"\nEN: {text}", flush=True)
+                    out(f"\nEN: {text}")
                     if args.no_translate:
                         continue
                     try:
@@ -346,12 +361,13 @@ def run(args: argparse.Namespace) -> int:
                     except Exception as exc:
                         eprint(f"Translation failed: {exc}")
                         continue
-                    print(f"JA: {translated}", flush=True)
+                    out(f"JA: {translated}")
             time.sleep(args.poll_interval)
     except KeyboardInterrupt:
         eprint("Stopping...")
     finally:
         stop_process(proc)
+        output_file.close()
     return proc.returncode or 0
 
 
@@ -373,6 +389,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-gpu", action="store_true")
     parser.add_argument("--diarize", action="store_true", help="enable speaker diarization (requires -tdrz model)")
     parser.add_argument("--no-translate", action="store_true", help="print English transcript only")
+    parser.add_argument("--output", "-o", default="", help="output file path (default: output/teams_YYYYMMDD_HHMMSS.txt)")
     parser.add_argument("--transcript-file", help="where whisper-stream writes English transcript")
     parser.add_argument("--poll-interval", type=float, default=0.5)
     parser.add_argument("--open-teams", action=argparse.BooleanOptionalAction, default=True)

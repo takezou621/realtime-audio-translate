@@ -9,6 +9,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
@@ -170,6 +171,7 @@ def main() -> int:
     parser.add_argument("--chunk-seconds", type=int, default=CHUNK_SEC)
     parser.add_argument("--no-translate", action="store_true", help="Show transcript only")
     parser.add_argument("--diarize", action="store_true", help="Enable speaker detection")
+    parser.add_argument("--output", "-o", default="", help="output file path (default: output/chrome_YYYYMMDD_HHMMSS.txt)")
     parser.add_argument("--device", default="", help="FFmpeg audio device (auto-detect if empty)")
     args = parser.parse_args()
 
@@ -182,6 +184,21 @@ def main() -> int:
     device = args.device or find_blackhole_device()
     err(f"Capturing from device: {device}")
     err(f"Chunk size: {args.chunk_seconds}s | Source: {args.source_language} | Target: {args.target_language}")
+
+    if args.output:
+        output_path = Path(args.output)
+    else:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = ROOT_DIR / "output" / f"chrome_{timestamp}.txt"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_file = output_path.open("a", encoding="utf-8")
+    err(f"Saving translations to: {output_path}")
+
+    def out(text: str) -> None:
+        print(text, flush=True)
+        output_file.write(text + "\n")
+        output_file.flush()
+
     err("Press Ctrl+C to stop.\n")
 
     tmpdir = tempfile.mkdtemp(prefix="chrome-translate-")
@@ -246,23 +263,23 @@ def main() -> int:
                         if not part_text:
                             continue
                         labeled = f"{speaker}: {part_text}"
-                        print(f"\n{labeled}", flush=True)
+                        out(f"\n{labeled}")
                         if not args.no_translate:
                             translated = translate(labeled, args.target_language, api_key, args.openai_model)
                             if translated:
-                                print(translated, flush=True)
+                                out(translated)
                     try:
                         os.unlink(chunk_path)
                     except OSError:
                         pass
                     continue
 
-            print(f"\n[{args.source_language.upper()}] {text}", flush=True)
+            out(f"\n[{args.source_language.upper()}] {text}")
 
             if not args.no_translate:
                 translated = translate(text, args.target_language, api_key, args.openai_model)
                 if translated:
-                    print(f"[{args.target_language}] {translated}", flush=True)
+                    out(f"[{args.target_language}] {translated}")
 
             try:
                 os.unlink(chunk_path)
@@ -272,6 +289,7 @@ def main() -> int:
     except KeyboardInterrupt:
         err("\nStopping.")
     finally:
+        output_file.close()
         import shutil
         shutil.rmtree(tmpdir, ignore_errors=True)
 
