@@ -40,6 +40,28 @@ def err(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
 
 
+def get_current_output_device() -> str | None:
+    """Return the current macOS sound output device name, or None on failure."""
+    try:
+        r = subprocess.run(
+            ["SwitchAudioSource", "-t", "output", "-c"],
+            capture_output=True, text=True,
+        )
+        name = r.stdout.strip()
+        return name if name else None
+    except FileNotFoundError:
+        return None
+
+
+def switch_output_device(name: str) -> bool:
+    """Switch macOS sound output to *name*. Returns True on success."""
+    r = subprocess.run(
+        ["SwitchAudioSource", "-t", "output", "-n", name],
+        capture_output=True, text=True,
+    )
+    return r.returncode == 0
+
+
 def find_blackhole_device() -> str:
     r = subprocess.run(
         ["ffmpeg", "-f", "avfoundation", "-list_devices", "true", "-i", ""],
@@ -173,6 +195,14 @@ def main() -> int:
     parser.add_argument("--diarize", action="store_true", help="Enable speaker detection")
     parser.add_argument("--output", "-o", default="", help="output file path (default: output/chrome_YYYYMMDD_HHMMSS.txt)")
     parser.add_argument("--device", default="", help="FFmpeg audio device (auto-detect if empty)")
+    parser.add_argument(
+        "--multi-output", default="Multi-Output Device",
+        help="Name of the macOS multi-output device to switch to (default: 'Multi-Output Device')",
+    )
+    parser.add_argument(
+        "--no-switch-device", action="store_true",
+        help="Disable automatic audio output device switching",
+    )
     args = parser.parse_args()
 
     load_env()
@@ -180,6 +210,27 @@ def main() -> int:
     if not api_key:
         err("OPENAI_API_KEY not set. Add it to .env")
         return 1
+
+    # --- audio output device switching ---
+    original_device = None
+    if not args.no_switch_device:
+        original_device = get_current_output_device()
+        if original_device is None:
+            err(
+                "SwitchAudioSource not found. Install with:\n"
+                "  brew install switchaudio-osx\n"
+                "Continuing without automatic device switching."
+            )
+        else:
+            if not switch_output_device(args.multi_output):
+                err(
+                    f"Could not switch to '{args.multi_output}'. "
+                    "Create one in Audio MIDI Setup (BlackHole + speakers).\n"
+                    f"Continuing with current device: {original_device}"
+                )
+                original_device = None
+            else:
+                err(f"Switched output to: {args.multi_output}")
 
     device = args.device or find_blackhole_device()
     err(f"Capturing from device: {device}")
@@ -292,6 +343,9 @@ def main() -> int:
         output_file.close()
         import shutil
         shutil.rmtree(tmpdir, ignore_errors=True)
+        if original_device:
+            switch_output_device(original_device)
+            err(f"Restored output device to: {original_device}")
 
     return 0
 
