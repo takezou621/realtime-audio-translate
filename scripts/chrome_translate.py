@@ -40,23 +40,54 @@ def err(msg: str) -> None:
     print(msg, file=sys.stderr, flush=True)
 
 
-def get_current_output_device() -> str | None:
-    """Return the current macOS sound output device name, or None on failure."""
+def get_current_output_device_uid() -> str | None:
+    """Return the UID of the current macOS sound output device, or None on failure."""
     try:
         r = subprocess.run(
-            ["SwitchAudioSource", "-t", "output", "-c"],
+            ["SwitchAudioSource", "-t", "output", "-c", "-f", "json"],
             capture_output=True, text=True,
         )
-        name = r.stdout.strip()
-        return name if name else None
-    except FileNotFoundError:
+        if r.returncode != 0:
+            return None
+        data = json.loads(r.stdout.strip())
+        return data.get("uid")
+    except (FileNotFoundError, json.JSONDecodeError, KeyError):
         return None
 
 
-def switch_output_device(name: str) -> bool:
-    """Switch macOS sound output to *name*. Returns True on success."""
+def find_device_uid(name_substring: str) -> str | None:
+    """Find the UID of an output device whose name contains *name_substring*.
+
+    Also tries common localized equivalents for multi-output devices.
+    """
     r = subprocess.run(
-        ["SwitchAudioSource", "-t", "output", "-n", name],
+        ["SwitchAudioSource", "-a", "-t", "output", "-f", "json"],
+        capture_output=True, text=True,
+    )
+    if r.returncode != 0:
+        return None
+    # Build search list: user string + common localized names
+    search_terms = [name_substring]
+    if name_substring.lower() in ("multi-output device", "multi-output"):
+        search_terms.append("複数出力装置")
+    elif name_substring in ("複数出力装置",):
+        search_terms.append("Multi-Output Device")
+    for line in r.stdout.strip().splitlines():
+        try:
+            dev = json.loads(line)
+            dev_name = dev.get("name", "")
+            for term in search_terms:
+                if term in dev_name:
+                    return dev["uid"]
+        except (json.JSONDecodeError, KeyError):
+            continue
+    return None
+
+
+def switch_output_device_by_uid(uid: str) -> bool:
+    """Switch macOS sound output to the device with *uid*. Returns True on success."""
+    r = subprocess.run(
+        ["SwitchAudioSource", "-t", "output", "-u", uid],
         capture_output=True, text=True,
     )
     return r.returncode == 0
@@ -212,23 +243,30 @@ def main() -> int:
         return 1
 
     # --- audio output device switching ---
-    original_device = None
+    original_device_uid = None
     if not args.no_switch_device:
-        original_device = get_current_output_device()
-        if original_device is None:
+        original_device_uid = get_current_output_device_uid()
+        if original_device_uid is None:
             err(
-                "SwitchAudioSource not found. Install with:\n"
+                "SwitchAudioSource not found or failed. Install with:\n"
                 "  brew install switchaudio-osx\n"
                 "Continuing without automatic device switching."
             )
         else:
-            if not switch_output_device(args.multi_output):
+            target_uid = find_device_uid(args.multi_output)
+            if target_uid is None:
+                err(
+                    f"Could not find output device matching '{args.multi_output}'. "
+                    "Create one in Audio MIDI Setup (BlackHole + speakers).\n"
+                    "Continuing with current device."
+                )
+                original_device_uid = None
+            elif not switch_output_device_by_uid(target_uid):
                 err(
                     f"Could not switch to '{args.multi_output}'. "
-                    "Create one in Audio MIDI Setup (BlackHole + speakers).\n"
-                    f"Continuing with current device: {original_device}"
+                    "Continuing with current device."
                 )
-                original_device = None
+                original_device_uid = None
             else:
                 err(f"Switched output to: {args.multi_output}")
 
@@ -343,9 +381,9 @@ def main() -> int:
         output_file.close()
         import shutil
         shutil.rmtree(tmpdir, ignore_errors=True)
-        if original_device:
-            switch_output_device(original_device)
-            err(f"Restored output device to: {original_device}")
+        if original_device_uid:
+            switch_output_device_by_uid(original_device_uid)
+            err("Restored original output device.")
 
     return 0
 
